@@ -1,0 +1,7 @@
+title: Laser Pointer
+author: Antigravity
+version: 1.0.0
+contributes:
+  filters:
+    - laser-pointer.lua
+
