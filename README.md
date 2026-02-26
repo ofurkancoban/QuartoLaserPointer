@@ -19,7 +19,7 @@ A high-precision laser pointer and real-time drawing extension for Quarto (Revea
 To install this extension in your Quarto project, run:
 
 ```bash
-quarto add extension ofurkancoban/QuartoLaserPointer
+quarto add ofurkancoban/QuartoLaserPointer
 ```
 
 Or manually copy the `_extensions/laser-pointer` directory into your project.
