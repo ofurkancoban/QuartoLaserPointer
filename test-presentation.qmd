@@ -7,7 +7,6 @@ format:
     self-contained: true
     footer: "Quarto Laser Pointer by @ofurkancoban"
 filters:
-  - progress-indicator
   - laser-pointer
 ---
 

@@ -33,7 +33,8 @@ local html_content = [===[
             pointer-events: none;
         }
 
-        body.laser-active #laser-container {
+        body.laser-active #laser-container,
+        body.laser-active .speaker-controls-notes-window .current-slide * {
             cursor: none !important;
         }
 
@@ -74,6 +75,17 @@ local html_content = [===[
         }
 
         body.slide-menu-active #laser-container {
+            display: none !important;
+        }
+
+        /* Hide laser pointer in the "Next Slide" preview of the Speaker View */
+        .speaker-controls-notes-window .speaker-controls-next #laser-container,
+        .reveal .slides section.future #laser-container {
+            display: none !important;
+        }
+
+        /* Hide the toolbar completely when running inside an iframe (like Speaker View) to prevent overlap bugs */
+        body.is-iframe .toolbar {
             display: none !important;
         }
 
@@ -483,13 +495,20 @@ local html_content = [===[
         checkThemeBrightness();
 
         function getRevealContainer() {
-            const speakerNotesSlides = document.querySelector('.current-slide .reveal .slides');
+            // In Speaker View, the notes window is structured as .speaker-controls-notes-window > .current-slide > .reveal > .slides
+            // The `.slides` layer has the transform: scale() applied.
+            const speakerNotesSlides = document.querySelector('.speaker-controls-notes-window .current-slide .reveal .slides');
             if (speakerNotesSlides) return speakerNotesSlides;
             return document.querySelector('.reveal .slides') || document.querySelector('.reveal') || document.body;
         }
 
         state.syncChannel.onmessage = (event) => {
             const msg = event.data;
+
+            // Only process drawing events if they were meant for the exact same slide (fixes upcoming-slide iframe bug)
+            const currentHash = window.location.hash || '#/';
+            if (msg.slide && msg.slide !== currentHash) return;
+
             const container = getRevealContainer();
             const rect = container.getBoundingClientRect();
 
@@ -541,6 +560,7 @@ local html_content = [===[
         };
 
         function broadcast(data) {
+            data.slide = window.location.hash || '#/';
             state.syncChannel.postMessage(data);
         }
 
@@ -695,7 +715,11 @@ local html_content = [===[
             const rect = container.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: clientX - rect.left, y: clientY - rect.top };
+            
+            return { 
+                x: clientX - rect.left,
+                y: clientY - rect.top 
+            };
         }
 
         function isPointerOverUI(e) {
@@ -983,14 +1007,38 @@ local html_content = [===[
         // Close menu if clicking outside or handle other shortcuts if needed
         setInterval(() => { if (!state.isToolbarVisible) return; const idle = Date.now() - state.lastMoveTime; const shouldHide = idle > 5000 && !state.isDrawing; toolbar.classList.toggle('hidden', shouldHide); }, 1000);
         window.addEventListener('DOMContentLoaded', () => { 
+            let isUpcoming = false;
+            try {
+                if (window.self !== window.top) {
+                    document.body.classList.add('is-iframe');
+                    if (window.frameElement && (window.frameElement.id === 'upcoming-slide' || window.frameElement.classList.contains('future'))) {
+                        isUpcoming = true;
+                    }
+                }
+            } catch (e) {}
+
+            if (isUpcoming) return; // Completely disable in the upcoming slide iframe
+
             const container = document.getElementById('laser-container'); 
             if (container && container.parentElement !== document.body) { 
                 document.body.appendChild(container); 
             } 
             if (state.isEnabled) document.body.classList.add('laser-active');
+            
+            initUI();
+            animate();
+
+            // Clear drawings automatically when the slide changes
+            if (typeof Reveal !== 'undefined') {
+                if (Reveal.isReady()) {
+                    Reveal.on('slidechanged', () => clearAll(true));
+                } else {
+                    Reveal.on('ready', () => {
+                        Reveal.on('slidechanged', () => clearAll(true));
+                    });
+                }
+            }
         });
-        initUI();
-        animate();
     </script>
 ]===]
 
