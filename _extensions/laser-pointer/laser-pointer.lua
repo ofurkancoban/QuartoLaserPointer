@@ -33,7 +33,7 @@ local html_content = [===[
             pointer-events: none;
         }
 
-        body.laser-active, body.laser-active #laser-container {
+        body.laser-active #laser-container {
             cursor: none !important;
         }
 
@@ -50,7 +50,10 @@ local html_content = [===[
         .reveal .controls, 
         .reveal .progress, 
         .reveal .slide-number,
-        .reveal .pause-overlay {
+        .reveal .pause-overlay,
+        .indicator-settings-btn,
+        .indicator-settings-panel,
+        .indicator-tooltip {
             z-index: 2000000 !important;
             pointer-events: auto !important;
         }
@@ -59,8 +62,15 @@ local html_content = [===[
         .slide-menu-wrapper,
         .reveal .controls, 
         .reveal .progress, 
-        .reveal .slide-number {
+        .reveal .slide-number,
+        .indicator-section,
+        .indicator-dot,
+        .indicator-settings-btn,
+        .indicator-btn-option,
+        .indicator-color-btn,
+        .theme-swatch {
             cursor: pointer !important;
+            pointer-events: auto !important;
         }
 
         body.slide-menu-active #laser-container {
@@ -73,6 +83,7 @@ local html_content = [===[
             cursor: none !important;
             pointer-events: auto;
             touch-action: none;
+            z-index: 1; /* Ensure canvas stays below indicator panels */
         }
 
         .grid-pattern {
@@ -323,7 +334,7 @@ local html_content = [===[
 
         .cursor-opt.active {
             background: rgba(239, 68, 68, 0.2);
-            outline: px solid #ef4444;
+            outline: 2px solid #ef4444;
         }
 
         .cursor-opt span {
@@ -371,7 +382,7 @@ local html_content = [===[
                 </button>
                 <button class="btn" id="mode-highlighter" onclick="setMode('highlighter')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>
-                    <span>High</span>
+                    <span>Highlight</span>
                 </button>
             </div>
 
@@ -433,7 +444,7 @@ local html_content = [===[
         ];
 
         const SIZES = [2, 4, 7];
-        const CURSORS = ["dot", "crosshair", "ring", "diamond", "star"];
+        const CURSORS = ["dot", "crosshair", "ring"];
 
         let state = {
             strokes: [],
@@ -451,8 +462,25 @@ local html_content = [===[
             isToolbarVisible: false,
             isEnabled: true,
             qTimer: null,
-            syncChannel: new BroadcastChannel('quarto-laser-sync')
+            syncChannel: new BroadcastChannel('quarto-laser-sync-' + (window.location.pathname || 'default')),
+            isUiHover: false,
+            isThemeLight: false
         };
+
+        function checkThemeBrightness() {
+            const el = document.querySelector('.reveal') || document.body;
+            const computedColor = window.getComputedStyle(el).color;
+            // E.g., rgb(34, 34, 34)
+            const match = computedColor.match(/\d+/g);
+            if (match && match.length >= 3) {
+                // Approximate brightness based on text color.
+                // If text is dark (Y < 128), it's a light theme.
+                const brightness = (parseInt(match[0]) * 299 + parseInt(match[1]) * 587 + parseInt(match[2]) * 114) / 1000;
+                state.isThemeLight = brightness < 128;
+            }
+        }
+        setInterval(checkThemeBrightness, 1000);
+        checkThemeBrightness();
 
         function getRevealContainer() {
             const speakerNotesSlides = document.querySelector('.current-slide .reveal .slides');
@@ -622,20 +650,13 @@ local html_content = [===[
 
         function getCursorSVG(type, s, active) {
             const color = active ? state.activeColor.value : "currentColor";
+            const innerDotFill = state.isThemeLight ? color : "white";
+            const innerDotOpacity = state.isThemeLight ? "1" : "0.9";
             const cx = s / 2, cy = s / 2;
             switch (type) {
-                case "dot": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><circle cx="${cx}" cy="${cy}" r="4" fill="${color}" /><circle cx="${cx}" cy="${cy}" r="1.5" fill="white" opacity="0.9" /></svg>`;
-                case "crosshair": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><line x1="${cx}" y1="2" x2="${cx}" y2="6" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><line x1="${cx}" y1="${s-6}" x2="${cx}" y2="${s-2}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="${cy}" x2="6" y2="${cy}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><line x1="${s-6}" y1="${cy}" x2="${s-2}" y2="${cy}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="1" fill="white" opacity="0.9"/></svg>`;
-                case "ring": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><circle cx="${cx}" cy="${cy}" r="6" fill="none" stroke="${color}" stroke-width="1.5" /><circle cx="${cx}" cy="${cy}" r="1" fill="white" opacity="0.9" /></svg>`;
-                case "diamond": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><polygon points="${cx},2 ${s-3},${cy} ${cx},${s-2} 3,${cy}" fill="${color}" /><circle cx="${cx}" cy="${cy}" r="1" fill="white" opacity="0.9" /></svg>`;
-                case "star": 
-                    let pts = "";
-                    for (let i = 0; i < 10; i++) {
-                        const r = i % 2 === 0 ? 7 : 3;
-                        const angle = (Math.PI * i) / 5 - Math.PI / 2;
-                        pts += `${cx + Math.cos(angle) * r},${cy + Math.sin(angle) * r} `;
-                    }
-                    return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><polygon points="${pts.trim()}" fill="${color}" /><circle cx="${cx}" cy="${cy}" r="1" fill="white" opacity="0.9" /></svg>`;
+                case "dot": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><circle cx="${cx}" cy="${cy}" r="4" fill="${color}" /><circle cx="${cx}" cy="${cy}" r="1.5" fill="${innerDotFill}" opacity="${innerDotOpacity}" /></svg>`;
+                case "crosshair": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><line x1="${cx}" y1="2" x2="${cx}" y2="6" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><line x1="${cx}" y1="${s-6}" x2="${cx}" y2="${s-2}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="${cy}" x2="6" y2="${cy}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><line x1="${s-6}" y1="${cy}" x2="${s-2}" y2="${cy}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="1" fill="${innerDotFill}" opacity="${innerDotOpacity}"/></svg>`;
+                case "ring": return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><circle cx="${cx}" cy="${cy}" r="6" fill="none" stroke="${color}" stroke-width="1.5" /><circle cx="${cx}" cy="${cy}" r="1" fill="${innerDotFill}" opacity="${innerDotOpacity}" /></svg>`;
             }
         }
 
@@ -663,7 +684,10 @@ local html_content = [===[
         }
 
         window.addEventListener('resize', resize);
-        setInterval(resize, 2000); 
+        if (typeof window.ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => resize());
+            window.addEventListener('DOMContentLoaded', () => ro.observe(document.body));
+        }
         resize();
 
         function getPoint(e) {
@@ -674,92 +698,158 @@ local html_content = [===[
             return { x: clientX - rect.left, y: clientY - rect.top };
         }
 
+        function isPointerOverUI(e) {
+            // Traverse up the DOM tree from the event target
+            let target = e.target;
+            while (target && target !== document.body && target !== document.documentElement) {
+                if (
+                    target.classList && (
+                        target.classList.contains('progress-indicator') ||
+                        target.classList.contains('indicator-settings-panel') ||
+                        target.classList.contains('indicator-settings-btn') ||
+                        target.classList.contains('indicator-tooltip') ||
+                        target.classList.contains('reveal-controls') ||
+                        target.classList.contains('slide-menu-button') ||
+                        target.classList.contains('toolbar')
+                    )
+                ) {
+                    return true;
+                }
+                target = target.parentElement;
+            }
+
+            // Fallback for touch events if target is canvas but visually over UI
+            if (e.touches && e.touches.length > 0) {
+                const touch = e.touches[0];
+                const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+                for (const el of elements) {
+                    if (
+                        el.classList && (
+                            el.classList.contains('progress-indicator') ||
+                            el.classList.contains('indicator-settings-panel') ||
+                            el.classList.contains('indicator-settings-btn') ||
+                            el.classList.contains('indicator-tooltip') ||
+                            el.classList.contains('reveal-controls') ||
+                            el.classList.contains('slide-menu-button') ||
+                            el.classList.contains('toolbar')
+                        )
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         canvas.addEventListener('mousedown', (e) => {
-            if (!state.isEnabled) return;
+            if (!state.isEnabled || isPointerOverUI(e)) return;
             state.isDrawing = true;
             const p = getPoint(e);
+            state.currentPoints = [p];
             const container = getRevealContainer();
             const rect = container.getBoundingClientRect();
-            state.currentPoints = [p];
             broadcast({ type: 'start-draw', x: p.x / rect.width, y: p.y / rect.height });
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!state.isEnabled && !state.isToolbarVisible) return;
+            
+            state.isUiHover = isPointerOverUI(e);
+            
+            if (state.isUiHover) {
+                if (state.isDrawing) finishDrawing();
+                return;
+            }
+
             const p = getPoint(e);
-            const container = getRevealContainer();
-            const rect = container.getBoundingClientRect();
             state.mousePos = p;
             state.isMouseOnCanvas = true;
             state.lastMoveTime = Date.now();
+            
+            const container = getRevealContainer();
+            const rect = container.getBoundingClientRect();
             broadcast({ type: 'move', x: p.x / rect.width, y: p.y / rect.height });
+            
             if (state.isDrawing) {
                 state.currentPoints.push(p);
                 broadcast({ type: 'stroke-point', x: p.x / rect.width, y: p.y / rect.height });
             }
         });
 
-        window.addEventListener('mouseup', () => {
-            if (state.isDrawing) {
-                const lw = SIZES[state.selectedSizeIndex];
-                const container = getRevealContainer();
-                const rect = container.getBoundingClientRect();
-                if (state.currentPoints.length > 1) {
-                    state.strokes.push({
-                        points: [...state.currentPoints],
-                        createdAt: Date.now(),
-                        color: state.activeColor.value,
-                        tool: state.activeTool,
-                        lineWidth: state.activeTool === 'highlighter' ? lw * HIGHLIGHTER_WIDTH_MULTIPLIER : lw
-                    });
-                }
-                broadcast({ type: 'end-draw', color: state.activeColor.value, tool: state.activeTool, lineWidth: state.activeTool === 'highlighter' ? lw * HIGHLIGHTER_WIDTH_MULTIPLIER : lw });
+        function finishDrawing() {
+            if (!state.isDrawing) return;
+            const lw = SIZES[state.selectedSizeIndex];
+            if (state.currentPoints.length > 1) {
+                state.strokes.push({
+                    points: [...state.currentPoints],
+                    createdAt: Date.now(),
+                    color: state.activeColor.value,
+                    tool: state.activeTool,
+                    lineWidth: state.activeTool === 'highlighter' ? lw * HIGHLIGHTER_WIDTH_MULTIPLIER : lw
+                });
             }
+            broadcast({ type: 'end-draw', color: state.activeColor.value, tool: state.activeTool, lineWidth: state.activeTool === 'highlighter' ? lw * HIGHLIGHTER_WIDTH_MULTIPLIER : lw });
             state.isDrawing = false;
             state.currentPoints = [];
+        }
+
+        window.addEventListener('mouseup', () => {
+            finishDrawing();
         });
 
         canvas.addEventListener('touchstart', (e) => {
-            if (!state.isEnabled) return;
-            e.preventDefault();
+            if (!state.isEnabled || isPointerOverUI(e)) return;
+            e.preventDefault(); // Only prevent default if we're actually going to draw
             state.isDrawing = true;
             const p = getPoint(e);
             const container = getRevealContainer();
             const rect = container.getBoundingClientRect();
             state.currentPoints = [p];
             broadcast({ type: 'start-draw', x: p.x / rect.width, y: p.y / rect.height });
-        });
+        }, { passive: false });
+
         canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
+            if (isPointerOverUI(e)) {
+                if (state.isDrawing) finishDrawing();
+                return;
+            }
+            e.preventDefault(); // Prevent scrolling only while drawing
             const p = getPoint(e);
             const container = getRevealContainer();
             const rect = container.getBoundingClientRect();
             state.mousePos = p;
             state.lastMoveTime = Date.now();
-            state.currentPoints.push(p);
-            broadcast({ type: 'stroke-point', x: p.x / rect.width, y: p.y / rect.height });
-        });
-        canvas.addEventListener('touchend', () => {
-             if (state.isDrawing) {
-                const lw = SIZES[state.selectedSizeIndex];
-                if (state.currentPoints.length > 1) {
-                    state.strokes.push({
-                        points: [...state.currentPoints],
-                        createdAt: Date.now(),
-                        color: state.activeColor.value,
-                        tool: state.activeTool,
-                        lineWidth: state.activeTool === 'highlighter' ? lw * HIGHLIGHTER_WIDTH_MULTIPLIER : lw
-                    });
-                }
-                broadcast({ type: 'end-draw', color: state.activeColor.value, tool: state.activeTool, lineWidth: state.activeTool === 'highlighter' ? lw * HIGHLIGHTER_WIDTH_MULTIPLIER : lw });
+            if (state.isDrawing) {
+                state.currentPoints.push(p);
+                broadcast({ type: 'stroke-point', x: p.x / rect.width, y: p.y / rect.height });
             }
-            state.isDrawing = false;
-            state.currentPoints = [];
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+             finishDrawing();
         });
 
         function drawSmoothLine(points, color, glowColor, opacity, lineWidth, tool) {
             if (points.length < 2) return;
             ctx.save();
+            
+            // Draw an underlying dark shadow on light themes for contrast
+            if (state.isThemeLight && tool !== 'highlighter') {
+                ctx.globalAlpha = opacity * 0.4;
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.lineWidth = lineWidth + 4;
+                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length - 1; i++) {
+                    const midX = (points[i].x + points[i + 1].x) / 2;
+                    const midY = (points[i].y + points[i + 1].y) / 2;
+                    ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+                }
+                ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+                ctx.stroke();
+            }
+
             if (tool === 'highlighter') {
                 ctx.globalAlpha = opacity * HIGHLIGHTER_OPACITY;
                 ctx.strokeStyle = color;
@@ -783,64 +873,64 @@ local html_content = [===[
             if (tool === 'laser') {
                 ctx.shadowBlur = 8 * opacity;
                 ctx.lineWidth = lineWidth * 0.5;
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 * opacity})`;
+                // Use a solid color on light themes instead of white for the core
+                ctx.strokeStyle = state.isThemeLight ? `rgba(${hexToRgb(color)}, ${0.9 * opacity})` : `rgba(255, 255, 255, ${0.6 * opacity})`;
                 ctx.stroke();
             }
             ctx.restore();
+        }
+
+        // Helper to get RGB for core tinting
+        function hexToRgb(hex) {
+            let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
         }
 
         function drawCursor(pos, color, glowColor, size, opacity, cursorType, tool) {
             if (opacity <= 0) return;
             ctx.save();
             ctx.globalAlpha = opacity;
+            
+            // Shared styling for the inner 1.5px dot
+            const innerDotFill = state.isThemeLight ? color : "rgba(255,255,255,0.9)";
+            const shadowBase = state.isThemeLight ? "rgba(0,0,0,0.5)" : color;
+
             if (tool === 'highlighter') {
                 const hlRadius = (size * HIGHLIGHTER_WIDTH_MULTIPLIER) / 2;
                 ctx.globalAlpha = opacity * 0.25;
                 ctx.fillStyle = color;
                 ctx.beginPath(); ctx.arc(pos.x, pos.y, hlRadius, 0, Math.PI * 2); ctx.fill();
-                ctx.globalAlpha = opacity * 0.4;
-                ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
                 ctx.restore(); return;
             }
+            
+            // Outer fade ring
             const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 24 + size * 2);
             gradient.addColorStop(0, glowColor);
             gradient.addColorStop(0.4, glowColor.replace("0.6", "0.2"));
             gradient.addColorStop(1, "rgba(0,0,0,0)");
             ctx.fillStyle = gradient;
             ctx.beginPath(); ctx.arc(pos.x, pos.y, 24 + size * 2, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowColor = color; ctx.shadowBlur = 15;
+            
+            // Main shape shadow
+            ctx.shadowColor = shadowBase; 
+            ctx.shadowBlur = 15;
+            
             switch (cursorType) {
                 case "dot":
                     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(pos.x, pos.y, 3 + size * 0.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,0.9)";
+                    ctx.shadowBlur = 0; ctx.fillStyle = innerDotFill;
                     ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
                     break;
                 case "crosshair":
                     const arm = 10 + size * 2, gap = 4;
                     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineCap = "round";
                     ctx.beginPath(); ctx.moveTo(pos.x, pos.y - gap); ctx.lineTo(pos.x, pos.y - arm); ctx.moveTo(pos.x, pos.y + gap); ctx.lineTo(pos.x, pos.y + arm); ctx.moveTo(pos.x - gap, pos.y); ctx.lineTo(pos.x - arm, pos.y); ctx.moveTo(pos.x + gap, pos.y); ctx.lineTo(pos.x + arm, pos.y); ctx.stroke();
-                    ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.shadowBlur = 0; ctx.fillStyle = innerDotFill; ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
                     break;
                 case "ring":
                     ctx.strokeStyle = color; ctx.lineWidth = 2.5;
                     ctx.beginPath(); ctx.arc(pos.x, pos.y, 8 + size * 1.5, 0, Math.PI * 2); ctx.stroke();
-                    ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
-                    break;
-                case "diamond":
-                    const d = 10 + size * 2;
-                    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(pos.x, pos.y - d); ctx.lineTo(pos.x + d * 0.7, pos.y); ctx.lineTo(pos.x, pos.y + d); ctx.lineTo(pos.x - d * 0.7, pos.y); ctx.closePath(); ctx.fill();
-                    ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
-                    break;
-                case "star":
-                    const oR = 12 + size * 2, iR = oR * 0.45;
-                    ctx.fillStyle = color; ctx.beginPath();
-                    for (let i = 0; i < 10; i++) {
-                        const r = i % 2 === 0 ? oR : iR;
-                        const a = (Math.PI * i) / 5 - Math.PI / 2;
-                        ctx.lineTo(pos.x + Math.cos(a) * r, pos.y + Math.sin(a) * r);
-                    }
-                    ctx.closePath(); ctx.fill();
-                    ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.shadowBlur = 0; ctx.fillStyle = innerDotFill; ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2); ctx.fill();
                     break;
             }
             ctx.restore();
@@ -865,7 +955,7 @@ local html_content = [===[
                 drawSmoothLine(state.currentPoints, state.activeColor.value, state.activeColor.glow, 1, currentLw, state.activeTool);
             }
             const idleTime = now - state.lastMoveTime;
-            if (idleTime < CURSOR_IDLE_TIMEOUT) {
+            if (idleTime < CURSOR_IDLE_TIMEOUT && !state.isUiHover) {
                 const fadeStart = CURSOR_IDLE_TIMEOUT - FADE_DURATION;
                 const opacity = idleTime > fadeStart ? 1 - (idleTime - fadeStart) / FADE_DURATION : 1;
                 drawCursor(state.mousePos, state.activeColor.value, state.activeColor.glow, SIZES[state.selectedSizeIndex], Math.max(0, opacity), state.selectedCursor, state.activeTool);
@@ -905,6 +995,9 @@ local html_content = [===[
 ]===]
 
 function Pandoc(doc)
+  if not quarto.doc.is_format("html:js") then
+    return doc
+  end
   -- Append the laser pointer HTML directly into the document blocks
   table.insert(doc.blocks, pandoc.RawBlock('html', html_content))
   return doc

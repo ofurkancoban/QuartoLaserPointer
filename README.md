@@ -10,6 +10,7 @@ A high-precision laser pointer and real-time drawing extension for Quarto (Revea
 - **Advanced Controls**:
   - **Single 'Q' press**: Toggles the laser system ON/OFF.
   - **Double 'Q' press (QQ)**: Opens the settings toolbar.
+  - **Single 'C' press**: Clears all drawings from the screen.
 - **Drawing Tools**: High-quality laser lines and highlighter strokes with automatic fading.
 - **Customization**: Change colors, sizes, and cursor types (Dot, Crosshair, Ring, Diamond, Star).
 - **Portable**: Consolidated into a single Lua filter for easy distribution.

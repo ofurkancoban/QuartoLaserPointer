@@ -3,10 +3,11 @@ title: Quarto Laser Pointer
 author: "@ofurkancoban"
 format: 
   revealjs:
-    theme: night
+    theme: default
     self-contained: true
     footer: "Quarto Laser Pointer by @ofurkancoban"
 filters:
+  - progress-indicator
   - laser-pointer
 ---
 
