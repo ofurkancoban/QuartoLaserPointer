@@ -53,8 +53,13 @@ local html_content = [===[
         .reveal .slide-number,
         .reveal .pause-overlay,
         .indicator-settings-btn,
-        .indicator-settings-panel,
         .indicator-tooltip {
+            z-index: 2000000 !important;
+            pointer-events: auto !important;
+        }
+        
+        /* Only give pointer-events to the panel when it's actually visible */
+        .indicator-settings-panel.visible {
             z-index: 2000000 !important;
             pointer-events: auto !important;
         }
@@ -66,12 +71,23 @@ local html_content = [===[
         .reveal .slide-number,
         .indicator-section,
         .indicator-dot,
-        .indicator-settings-btn,
-        .indicator-btn-option,
-        .indicator-color-btn,
-        .theme-swatch {
+        .indicator-settings-btn {
             cursor: pointer !important;
             pointer-events: auto !important;
+        }
+
+        /* Panel-internal buttons: only interactive when laser is active (to avoid overriding panel's pointer-events:none) */
+        body.laser-active .indicator-btn-option,
+        body.laser-active .indicator-color-btn,
+        body.laser-active .theme-swatch {
+            cursor: pointer !important;
+            pointer-events: auto !important;
+        }
+
+        /* Hide indicator settings panel when laser is active to avoid z-index conflicts */
+        body.laser-active .indicator-settings-panel {
+            display: none !important;
+            pointer-events: none !important;
         }
 
         body.slide-menu-active #laser-container {
@@ -667,6 +683,8 @@ local html_content = [===[
             
             if (!remote) broadcast({ type: 'power', enabled });
         }
+        // Expose globally so other extensions (e.g. progress-indicator) can turn off the laser
+        window.laserPointerSetPower = setPower;
 
         function getCursorSVG(type, s, active) {
             const color = active ? state.activeColor.value : "currentColor";
