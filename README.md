@@ -1,5 +1,7 @@
 # Quarto Laser Pointer Extension 🎯
 
+![Image](https://github.com/user-attachments/assets/cf7b7627-f513-4ff0-8d64-ecd42f8944eb)
+
 A high-precision laser pointer and real-time drawing extension for Quarto (Reveal.js) presentations. Perfectly synchronized between the main presentation window and the speaker notes.
 
 ## Features ✨
