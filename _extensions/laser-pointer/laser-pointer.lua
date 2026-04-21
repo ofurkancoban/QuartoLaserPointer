@@ -15,20 +15,11 @@ local html_content = [===[
             --radius: 0.75rem;
         }
 
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: transparent;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
+
 
         #laser-container {
-            position: absolute;
-            top: 0;
-            left: 0;
+            position: fixed;
+            inset: 0;
             z-index: 999999;
             pointer-events: none;
         }
@@ -46,7 +37,6 @@ local html_content = [===[
             cursor: pointer !important;
         }
 
-        .slide-menu-button, 
         .slide-menu-wrapper,
         .reveal .controls, 
         .reveal .progress, 
@@ -58,13 +48,17 @@ local html_content = [===[
             pointer-events: auto !important;
         }
         
+        .slide-menu-button {
+            z-index: 2000000 !important;
+            /* Do not force pointer-events: auto here; let the theme manage the container */
+        }
+        
         /* Only give pointer-events to the panel when it's actually visible */
         .indicator-settings-panel.visible {
             z-index: 2000000 !important;
             pointer-events: auto !important;
         }
         
-        .slide-menu-button, 
         .slide-menu-wrapper,
         .reveal .controls, 
         .reveal .progress, 
@@ -143,6 +137,7 @@ local html_content = [===[
             user-select: none;
             z-index: 1000000;
             transition: opacity 0.3s, transform 0.3s;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         .toolbar.hidden {
@@ -1024,7 +1019,11 @@ local html_content = [===[
         });
         // Close menu if clicking outside or handle other shortcuts if needed
         setInterval(() => { if (!state.isToolbarVisible) return; const idle = Date.now() - state.lastMoveTime; const shouldHide = idle > 5000 && !state.isDrawing; toolbar.classList.toggle('hidden', shouldHide); }, 1000);
-        window.addEventListener('DOMContentLoaded', () => { 
+        function startLaserPointer() {
+            if (window._laserPointerInitialized) return;
+            window._laserPointerInitialized = true;
+            console.log("Initializing Quarto Laser Pointer...");
+            
             let isUpcoming = false;
             try {
                 if (window.self !== window.top) {
@@ -1035,7 +1034,10 @@ local html_content = [===[
                 }
             } catch (e) {}
 
-            if (isUpcoming) return; // Completely disable in the upcoming slide iframe
+            if (isUpcoming) {
+                 console.log("Quarto Laser Pointer: Upcoming slide detected, skipping.");
+                 return;
+            }
 
             const container = document.getElementById('laser-container'); 
             if (container && container.parentElement !== document.body) { 
@@ -1052,11 +1054,23 @@ local html_content = [===[
                     Reveal.on('slidechanged', () => clearAll(true));
                 } else {
                     Reveal.on('ready', () => {
-                        Reveal.on('slidechanged', () => clearAll(true));
+                         console.log("Quarto Laser Pointer: Reveal.js is ready.");
+                         Reveal.on('slidechanged', () => clearAll(true));
                     });
                 }
             }
-        });
+        }
+
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', startLaserPointer);
+        } else {
+            startLaserPointer();
+        }
+        
+        // Final fallback for Reveal.js environments that load dynamically
+        if (typeof Reveal !== 'undefined' && !Reveal.isReady()) {
+            Reveal.on('ready', startLaserPointer);
+        }
     </script>
 ]===]
 
