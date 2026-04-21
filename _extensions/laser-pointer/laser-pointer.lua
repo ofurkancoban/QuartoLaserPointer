@@ -24,9 +24,8 @@ local html_content = [===[
             pointer-events: none;
         }
 
-        body.laser-active #laser-container,
-        body.laser-active .speaker-controls-notes-window .current-slide * {
-            cursor: none !important;
+        body.laser-active #laser-container {
+            cursor: none;
         }
 
         .toolbar, .cursor-dropdown {
@@ -37,8 +36,15 @@ local html_content = [===[
             cursor: pointer !important;
         }
 
-        .slide-menu-wrapper,
-        .reveal .controls, 
+        .reveal .controls {
+            z-index: 2000000 !important;
+            pointer-events: none !important;
+        }
+        .reveal .controls button,
+        .reveal .controls .controls-arrow {
+            pointer-events: auto !important;
+        }
+
         .reveal .progress, 
         .reveal .slide-number,
         .reveal .pause-overlay,
@@ -47,10 +53,36 @@ local html_content = [===[
             z-index: 2000000 !important;
             pointer-events: auto !important;
         }
+
+        /* Ensure menu and chalkboard elements are above our elevated controls (2,000,000) */
+        .slide-menu-overlay,
+        .chalkboard-canvas,
+        .chalkboard-palette {
+            z-index: 3000000 !important;
+            pointer-events: auto !important;
+        }
         
+        .slide-menu,
+        .slide-menu-wrapper,
+        .chalkboard-button {
+            z-index: 3000001 !important;
+            pointer-events: auto !important;
+        }
+
+        /* Clean-revealjs theme makes these containers viewport-sized with
+           pointer-events:none and only children clickable. We must respect
+           that pattern: elevate z-index but keep container transparent. */
+        .slide-chalkboard-buttons,
         .slide-menu-button {
-            z-index: 2000000 !important;
-            /* Do not force pointer-events: auto here; let the theme manage the container */
+            z-index: 2000001 !important;
+            pointer-events: none !important;
+        }
+
+        /* Only the actual button icons inside should be clickable */
+        .slide-chalkboard-buttons > *,
+        .slide-menu-button > * {
+            pointer-events: auto !important;
+            cursor: pointer !important;
         }
         
         /* Only give pointer-events to the panel when it's actually visible */
@@ -59,8 +91,7 @@ local html_content = [===[
             pointer-events: auto !important;
         }
         
-        .slide-menu-wrapper,
-        .reveal .controls, 
+        .reveal .controls button,
         .reveal .progress, 
         .reveal .slide-number,
         .indicator-section,
@@ -84,9 +115,15 @@ local html_content = [===[
             pointer-events: none !important;
         }
 
-        body.slide-menu-active #laser-container {
+        body.slide-menu-active #laser-container,
+        body.slide-menu-active .toolbar,
+        body.chalkboard-active #laser-container,
+        body.notes-active #laser-container {
             display: none !important;
+            pointer-events: none !important;
         }
+
+
 
         /* Hide laser pointer in the "Next Slide" preview of the Speaker View */
         .speaker-controls-notes-window .speaker-controls-next #laser-container,
@@ -99,10 +136,13 @@ local html_content = [===[
             display: none !important;
         }
 
-        canvas {
+        body.laser-active #laser-canvas {
+            cursor: none !important;
+        }
+
+        #laser-canvas {
             position: absolute;
             inset: 0;
-            cursor: none !important;
             pointer-events: auto;
             touch-action: none;
             z-index: 1; /* Ensure canvas stays below indicator panels */
@@ -736,46 +776,48 @@ local html_content = [===[
         }
 
         function isPointerOverUI(e) {
-            // Traverse up the DOM tree from the event target
-            let target = e.target;
-            while (target && target !== document.body && target !== document.documentElement) {
-                if (
-                    target.classList && (
-                        target.classList.contains('progress-indicator') ||
-                        target.classList.contains('indicator-settings-panel') ||
-                        target.classList.contains('indicator-settings-btn') ||
-                        target.classList.contains('indicator-tooltip') ||
-                        target.classList.contains('reveal-controls') ||
-                        target.classList.contains('slide-menu-button') ||
-                        target.classList.contains('toolbar')
-                    )
-                ) {
-                    return true;
-                }
-                target = target.parentElement;
+            let x, y;
+            if (e.touches && e.touches.length > 0) {
+                x = e.touches[0].clientX;
+                y = e.touches[0].clientY;
+            } else {
+                x = e.clientX;
+                y = e.clientY;
             }
 
-            // Fallback for touch events if target is canvas but visually over UI
-            if (e.touches && e.touches.length > 0) {
-                const touch = e.touches[0];
-                const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
-                for (const el of elements) {
-                    if (
-                        el.classList && (
-                            el.classList.contains('progress-indicator') ||
-                            el.classList.contains('indicator-settings-panel') ||
-                            el.classList.contains('indicator-settings-btn') ||
-                            el.classList.contains('indicator-tooltip') ||
-                            el.classList.contains('reveal-controls') ||
-                            el.classList.contains('slide-menu-button') ||
-                            el.classList.contains('toolbar')
-                        )
-                    ) {
-                        return true;
-                    }
-                }
-            }
-            return false;
+            const elements = document.elementsFromPoint(x, y);
+            // Find the first element that is NOT part of the laser pointer UI itself
+            const target = elements.find(el => 
+                el.id !== 'laser-canvas' && 
+                el.id !== 'laser-container' && 
+                !el.classList.contains('grid-pattern')
+            );
+
+            if (!target) return false;
+
+            // EXPLICITLY EXCLUDE tab content area from being treated as UI 
+            // so the laser works correctly over the tabbed content.
+            if (target.closest('.tab-content')) return false;
+
+            return !!(
+                target.closest('.toolbar') ||
+                target.closest('.cursor-dropdown') ||
+                target.closest('.slide-menu-button') ||
+                target.closest('.slide-chalkboard-buttons') ||
+                target.closest('.slide-menu-wrapper') ||
+                target.closest('.reveal-chalkboard') ||
+                target.closest('.controls') ||
+                target.closest('.progress') ||
+                target.closest('.slide-number') ||
+                target.closest('.nav-tabs') ||
+                target.closest('.tabby-tabs') ||
+                target.closest('[role="tablist"]') ||
+                target.closest('[role="tab"]') ||
+                target.closest('.indicator-settings-btn') ||
+                target.closest('.indicator-settings-panel') ||
+                target.closest('.indicator-tooltip') ||
+                target.closest('.progress-indicator')
+            );
         }
 
         canvas.addEventListener('mousedown', (e) => {
@@ -792,6 +834,13 @@ local html_content = [===[
             if (!state.isEnabled && !state.isToolbarVisible) return;
             
             state.isUiHover = isPointerOverUI(e);
+            
+            // DYNAMIC POINTER EVENTS: 
+            // If hovering over UI (buttons, menu, chalkboard), make canvas transparent 
+            // to events so clicks and cursors pass through to the elements below.
+            if (state.isEnabled) {
+                canvas.style.pointerEvents = state.isUiHover ? 'none' : 'auto';
+            }
             
             if (state.isUiHover) {
                 if (state.isDrawing) finishDrawing();
