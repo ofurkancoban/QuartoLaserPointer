@@ -1,7 +1,6 @@
 ---
 title: Quarto Laser Pointer
 author: "@ofurkancoban"
-transit
 format: 
   revealjs:
     theme: default

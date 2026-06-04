@@ -1,6 +1,6 @@
 title: Laser Pointer
 author: ofurkancoban
-version: 1.2.2
+version: 1.2.3
 contributes:
   filters:
     - laser-pointer.lua

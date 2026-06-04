@@ -431,9 +431,9 @@ local html_content = [===[
         </div>
 
         <div class="toolbar hidden" id="toolbar" onmousedown="event.stopPropagation()">
-            <button class="btn power-on" id="btn-power" onclick="togglePower()">
+            <button class="btn power-off" id="btn-power" onclick="togglePower()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-                <span>ON</span>
+                <span>OFF</span>
             </button>
 
             <div class="divider"></div>
@@ -523,7 +523,7 @@ local html_content = [===[
             selectedCursor: 'dot',
             isCustomColor: false,
             isToolbarVisible: false,
-            isEnabled: true,
+            isEnabled: false,
             qTimer: null,
             syncChannel: new BroadcastChannel('quarto-laser-sync-' + (window.location.pathname || 'default')),
             isUiHover: false,
@@ -1092,9 +1092,9 @@ local html_content = [===[
             if (container && container.parentElement !== document.body) { 
                 document.body.appendChild(container); 
             } 
-            if (state.isEnabled) document.body.classList.add('laser-active');
             
             initUI();
+            setPower(state.isEnabled, true);
             animate();
 
             // Clear drawings automatically when the slide changes
